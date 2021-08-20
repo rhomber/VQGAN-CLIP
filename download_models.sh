@@ -7,7 +7,7 @@ IMAGENET_1024=false
 IMAGENET_16384=true
 GUMBEL=false
 WIKIART_1024=false
-WIKIART_16384=false
+WIKIART_16384=true
 # Not yet working:
 COCO=false
 FACESHQ=false
