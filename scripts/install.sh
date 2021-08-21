@@ -18,8 +18,7 @@ cd /app
 conda create --name vqgan python=3.9
 conda init bash
 . /opt/conda/etc/profile.d/conda.sh
-conda activate vqgan
-
+source activate vqgan
 echo "Python: $(python --version)"
 
 pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
