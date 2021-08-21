@@ -79,10 +79,22 @@ vq_parser.add_argument("-zsc",  "--zoom_scale", type=float, help="Zoom scale", d
 vq_parser.add_argument("-cpe",  "--change_prompt_every", type=int, help="Prompt change frequency", default=0, dest='prompt_frequency')
 vq_parser.add_argument("-vl",   "--video_length", type=float, help="Video length in seconds", default=10, dest='video_length')
 vq_parser.add_argument("-d",    "--deterministic", action='store_true', help="Enable cudnn.deterministic?", dest='cudnn_determinism')
-vq_parser.add_argument("-aug",  "--augments", nargs='+', action='append', type=str, choices=['Ji','Sh','Gn','Pe','Ro','Af','Et','Ts','Cr','Er','Re'], help="Enabled augments", default=[], dest='augments')
+vq_parser.add_argument("-aug",  "--augments", nargs='+', action='append', type=str, choices=['Ji','Sh','Gn','Pe','Ro','Af','Et','Ts','Cr','Er','Re', 'Rf'], help="Enabled augments", default=[], dest='augments')
+
+# Custom
+vq_parser.add_argument("-sch",  "--scheme", type=str, help="Scheme", choices=['default','zQuantize'], default='default', dest='scheme')
+
+# zQuantize: https://colab.research.google.com/drive/1go6YwMFe5MX6XM9tv-cnQiSTU50N9EeT?fbclid=IwAR30ZqxIJG0-2wDukRydFA3jU5OpLHrlC_Sg1iRXqmoTkEhaJtHdRi6H7AI#scrollTo=VA1PHoJrRiK9
 
 # Execute the parse_args() method
 args = vq_parser.parse_args()
+
+# Override defaults
+if args.scheme == 'zQuantize':
+    if args.cutn == 32:
+        args.cutn = 64
+    if not args.augments:
+        args.augments = [['Rf', 'Sh', 'Af', 'Pe', 'Ji']]
 
 if args.cudnn_determinism:
    torch.backends.cudnn.deterministic = True
@@ -138,7 +150,6 @@ def ramp(ratio, width):
         cur += ratio
     return torch.cat([-out[1:].flip([0]), out])[1:-1]
 
-
 # For zoom video
 def zoom_at(img, x, y, zoom):
     w, h = img.size
@@ -177,7 +188,6 @@ def random_gradient_image(w,h):
     return random_image
 
 
-# Not used?
 def resample(input, size, align_corners=True):
     n, c, h, w = input.shape
     dh, dw = size
@@ -235,7 +245,6 @@ def vector_quantize(x, codebook):
     x_q = F.one_hot(indices, codebook.shape[0]).to(d.dtype) @ codebook
     return replace_grad(x_q, x)
 
-
 class Prompt(nn.Module):
     def __init__(self, embed, weight=1., stop=float('-inf')):
         super().__init__()
@@ -269,17 +278,31 @@ class MakeCutouts(nn.Module):
         augment_list = []
         for item in args.augments[0]:
             if item == 'Ji':
-                augment_list.append(K.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1, p=0.5))
+                if args.scheme == 'zQuantize':
+                    augment_list.append(K.ColorJitter(hue=0.01, saturation=0.01, p=0.7))
+                else:
+                    augment_list.append(K.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1, p=0.5))
             elif item == 'Sh':
-                augment_list.append(K.RandomSharpness(sharpness=0.4, p=0.7))
+                if args.scheme == 'zQuantize':
+                    augment_list.append(K.RandomSharpness(0.3, p=0.4))
+                else:
+                    augment_list.append(K.RandomSharpness(sharpness=0.4, p=0.7))
             elif item == 'Gn':
                 augment_list.append(K.RandomGaussianNoise(mean=0.0, std=1., p=0.5))
             elif item == 'Pe':
-                augment_list.append(K.RandomPerspective(distortion_scale=0.7, p=0.7))
+                if args.scheme == 'zQuantize':
+                    augment_list.append(K.RandomPerspective(0.2,p=0.4))
+                else:
+                    augment_list.append(K.RandomPerspective(distortion_scale=0.7, p=0.7))
             elif item == 'Ro':
                 augment_list.append(K.RandomRotation(degrees=15, p=0.7))
             elif item == 'Af':
-                augment_list.append(K.RandomAffine(degrees=15, translate=0.1, shear=15, p=0.7, padding_mode='border', keepdim=True)) # border, reflection, zeros
+                if args.scheme == 'zQuantize':
+                    augment_list.append(
+                        K.RandomAffine(degrees=30, translate=0.1, p=0.8, padding_mode='border'))
+                else:
+                    augment_list.append(
+                        K.RandomAffine(degrees=15, translate=0.1, shear=15, p=0.7, padding_mode='border', keepdim=True)) # border, reflection, zeros
             elif item == 'Et':
                 augment_list.append(K.RandomElasticTransform(p=0.7))
             elif item == 'Ts':
@@ -290,7 +313,10 @@ class MakeCutouts(nn.Module):
                 augment_list.append(K.RandomErasing(scale=(.05, .33), ratio=(.3, 1.3), same_on_batch=True, p=0.5))
             elif item == 'Re':
                 augment_list.append(K.RandomResizedCrop(size=(self.cut_size,self.cut_size), scale=(0.1,1),  ratio=(0.75,1.333), cropping_mode='resample', p=0.5))
-        
+            # Custom
+            elif item == 'Rf':
+                augment_list.append(K.RandomHorizontalFlip(p=0.5))
+
         # print(augment_list)
         
         self.augs = nn.Sequential(*augment_list)
@@ -320,26 +346,25 @@ class MakeCutouts(nn.Module):
         self.av_pool = nn.AdaptiveAvgPool2d((self.cut_size, self.cut_size))
         self.max_pool = nn.AdaptiveMaxPool2d((self.cut_size, self.cut_size))
 
+
     def forward(self, input):
-        # sideY, sideX = input.shape[2:4]
-        # max_size = min(sideX, sideY)
-        # min_size = min(sideX, sideY, self.cut_size)
+        sideY, sideX = input.shape[2:4]
+        max_size = min(sideX, sideY)
+        min_size = min(sideX, sideY, self.cut_size)
         cutouts = []
-        
         for _ in range(self.cutn):
-            # size = int(torch.rand([])**self.cut_pow * (max_size - min_size) + min_size)
-            # offsetx = torch.randint(0, sideX - size + 1, ())
-            # offsety = torch.randint(0, sideY - size + 1, ())
-            # cutout = input[:, :, offsety:offsety + size, offsetx:offsetx + size]
-            # cutouts.append(resample(cutout, (self.cut_size, self.cut_size)))
-            # cutout = transforms.Resize(size=(self.cut_size, self.cut_size))(input)
-            
-            # Use Pooling
-            cutout = (self.av_pool(input) + self.max_pool(input))/2
-            cutouts.append(cutout)
-            
+            if args.scheme == 'zQuantize':
+                size = int(torch.rand([])**self.cut_pow * (max_size - min_size) + min_size)
+                offsetx = torch.randint(0, sideX - size + 1, ())
+                offsety = torch.randint(0, sideY - size + 1, ())
+
+                cutout = input[:, :, offsety:offsety + size, offsetx:offsetx + size]
+                cutouts.append(resample(cutout, (self.cut_size, self.cut_size)))
+            else:
+                cutout = (self.av_pool(input) + self.max_pool(input)) / 2
+                cutouts.append(cutout)
+
         batch = self.augs(torch.cat(cutouts, dim=0))
-        
         if self.noise_fac:
             facs = batch.new_empty([self.cutn, 1, 1, 1]).uniform_(0, self.noise_fac)
             batch = batch + facs * torch.randn_like(batch)
@@ -406,6 +431,10 @@ else:
     z_min = model.quantize.embedding.weight.min(dim=0).values[None, :, None, None]
     z_max = model.quantize.embedding.weight.max(dim=0).values[None, :, None, None]
 
+if args.scheme == 'zQuantize':
+    if gumbel:
+        e_dim = model.quantize.embedding_dim
+
 
 # Image initialisation
 if args.init_image:
@@ -459,9 +488,7 @@ for prompt in args.prompts:
 
 for prompt in args.image_prompts:
     path, weight, stop = split_prompt(prompt)
-    img = Image.open(path)
-    pil_image = img.convert('RGB')
-    img = resize_image(pil_image, (sideX, sideY))
+    img = resize_image(Image.open(path).convert('RGB'), (sideX, sideY))
     batch = make_cutouts(TF.to_tensor(img).unsqueeze(0).to(device))
     embed = perceptor.encode_image(normalize(batch)).float()
     pMs.append(Prompt(embed, weight, stop).to(device))
@@ -536,7 +563,6 @@ def checkin(i, losses):
     info.add_text('comment', f'{args.prompts}')
     TF.to_pil_image(out[0].cpu()).save(args.output, pnginfo=info) 	
 
-
 def ascend_txt():
     global i
     out = synth(z)
@@ -560,7 +586,11 @@ def ascend_txt():
 
 
 def train(i):
-    opt.zero_grad(set_to_none=True)
+    if args.scheme == 'zQuantize':
+        opt.zero_grad()
+    else:
+        opt.zero_grad(set_to_none=True)
+
     lossAll = ascend_txt()
     
     if i % args.display_freq == 0:
@@ -572,7 +602,6 @@ def train(i):
     
     with torch.no_grad():
         z.copy_(z.maximum(z_min).minimum(z_max))
-
 
 
 i = 0 # Iteration counter

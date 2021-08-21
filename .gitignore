@@ -9,6 +9,7 @@ checkpoints/
 
 # Editor
 .vscode/
+.idea/
 
 # Operations
 outputs/
