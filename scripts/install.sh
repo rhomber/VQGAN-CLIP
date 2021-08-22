@@ -24,4 +24,9 @@ echo "Python: $(python --version)"
 pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 pip install ftfy regex tqdm omegaconf pytorch-lightning IPython kornia imageio imageio-ffmpeg einops torch_optimizer
 
+# cgd
 
+git clone https://github.com/afiaka87/clip-guided-diffusion.git && cd clip-guided-diffusion
+git clone https://github.com/afiaka87/guided-diffusion.git
+pip3 install -e guided-diffusion
+python setup.py install
