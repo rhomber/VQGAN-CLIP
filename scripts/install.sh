@@ -6,7 +6,7 @@ mkdir -p /tmp
 cd /tmp
 
 apt update
-apt install -y git curl wget vim
+apt install -y git curl wget vim ffmpeg
 
 wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.10.3-Linux-x86_64.sh
 chmod +x Miniconda3-py38_4.10.3-Linux-x86_64.sh
