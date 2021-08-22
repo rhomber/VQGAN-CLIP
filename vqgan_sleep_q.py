@@ -6,6 +6,10 @@ import argparse
 from concurrent import futures
 import sys
 
+# pip install taming-transformers works with Gumbel, but does not yet work with coco etc
+# appending the path works with Gumbel, but gives ModuleNotFoundError: No module named 'transformers' for coco etc
+sys.path.append('taming-transformers')
+
 from omegaconf import OmegaConf
 from PIL import Image
 from taming.models import cond_transformer, vqgan
@@ -227,7 +231,7 @@ def main():
                    help='use masked init weight instead of a hard mask')
     p.add_argument('--clip-model', type=str, default='ViT-B/32', choices=clip.available_models(),
                    help='the CLIP model to use')
-    p.add_argument('--vqgan-model', type=str, default='vqgan_models/vqgan_imagenet_f16_1024',
+    p.add_argument('--vqgan-model', type=str, default='checkpoints/vqgan_imagenet_f16_16384',
                    help='the VQGAN model')
     p.add_argument('--step-size', '-ss', type=float, default=0.05,
                    help='the step size')
