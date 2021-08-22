@@ -22,12 +22,16 @@ vq_parser = argparse.ArgumentParser(description='Image generation using VQGAN+CL
 # Add the arguments
 vq_parser.add_argument("-o",    "--output", type=str, help="Output file", default="output.png", dest='output')
 vq_parser.add_argument("-vl",   "--video_length", type=float, help="Video length in seconds", default=10, dest='video_length')
+vq_parser.add_argument("-fi",    "--video_first", type=int, help="Video last first", dest='video_first')
 vq_parser.add_argument("-la",    "--video_last", type=int, help="Video last frame", dest='video_last')
 
 # Execute the parse_args() method
 args = vq_parser.parse_args()
 
 init_frame = 1  # Initial video frame
+if args.video_first > 0:
+    init_frame = args.video_first
+
 last_frame = args.video_last
 length = args.video_length  # Desired time of the video in seconds
 
@@ -44,7 +48,7 @@ for i in range(init_frame, last_frame):
 # fps = last_frame/10
 fps = np.clip(total_frames / length, min_fps, max_fps)
 output_file = re.compile('\.png$').sub('.mp4', args.output)
-p = Popen(['ffmpeg',
+p = Popen(['/usr/bin/ffmpeg',
            '-y',
            '-f', 'image2pipe',
            '-vcodec', 'png',
