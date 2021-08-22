@@ -695,7 +695,7 @@ if args.make_video or args.make_zoom_video:
     #fps = last_frame/10
     fps = np.clip(total_frames/length,min_fps,max_fps)
     output_file = re.compile('\.png$').sub('.mp4', args.output)
-    p = Popen(['ffmpeg',
+    p = Popen(['/usr/bin/ffmpeg',
                '-y',
                '-f', 'image2pipe',
                '-vcodec', 'png',
