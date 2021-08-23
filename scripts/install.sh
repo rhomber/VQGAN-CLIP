@@ -26,7 +26,7 @@ pip install ftfy regex tqdm omegaconf pytorch-lightning IPython kornia imageio i
 
 # cgd
 
-git clone https://github.com/afiaka87/clip-guided-diffusion.git && cd clip-guided-diffusion
+git clone https://github.com/rhomber/clip-guided-diffusion.git && cd clip-guided-diffusion
 git clone https://github.com/afiaka87/guided-diffusion.git
 pip3 install -e guided-diffusion
 python setup.py install
