@@ -23,3 +23,4 @@ chmod +x ./download_models.sh
 ./download_models.sh
 
 ulimit -n 1048576
+ulimit -Sn 1048576
